@@ -48,7 +48,6 @@ function InputIcon({
   );
 }
 
-// ── Reusable upload field ──────────────────────────────────────────────────────
 interface UploadFieldProps {
   label:        string;
   previewUrl:   string;

@@ -39,7 +39,7 @@ export function AuthLayout() {
         </div>
 
         <p className="text-center text-xs text-surface-400 dark:text-surface-600 mt-6">
-          © 2026 SCOS · Kelompok ?
+          © 2026 SCOS .
         </p>
       </motion.div>
     </div>
