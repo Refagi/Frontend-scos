@@ -12,6 +12,8 @@ import type { UserRole } from '@/types';
 import { AxiosError } from 'axios';
 import type { ErrorResponse } from '@/lib/api/types';
 import { Field } from '@/components/ui/Field';
+import { ImageUploadField } from '@/components/ui/ImageUploadField';
+import { useImageUpload, imagePatch } from '@/hooks/useImageUpload';
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: 'admin',    label: 'Admin'     },
@@ -45,14 +47,17 @@ export function AdminTambahAkun() {
   const [showPw,      setShowPw]      = useState(false);
   const [phone,       setPhone]       = useState('');
   const [role,        setRole]        = useState<UserRole>('customer');
-  const [status,      setStatus]      = useState<'active' | 'non-active'>('active');
+  const [status,      setStatus]      = useState<'active' | 'non_active'>('active');
   // seller fields
   const [storeName,   setStoreName]   = useState('');
   const [description, setDescription] = useState('');
   const [location,    setLocation]    = useState('');
   const [isOpen,      setIsOpen]      = useState(true);
   const [openLabel,   setOpenLabel]   = useState('');
-  const [qrisImage,   setQrisImage]   = useState('');
+  const avatar = useImageUpload('avatar');
+  const image  = useImageUpload('tenant');
+  const qris   = useImageUpload('qris');
+  const anyUploading = avatar.uploading || image.uploading || qris.uploading;
 
   const [errors,        setErrors]        = useState<Record<string, string>>({});
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -89,13 +94,15 @@ export function AdminTambahAkun() {
       role,
       status,
       ...(phone && { phone }),
+      ...imagePatch('avatar', avatar),
       ...(isSeller && {
         storeName,
         description,
         location,
         isOpen,
         openLabel,
-        qrisImage,
+        ...imagePatch('image', image),
+        ...imagePatch('qrisImage', qris),
       }),
     };
 
@@ -234,13 +241,15 @@ export function AdminTambahAkun() {
               <select
                 className="input-base"
                 value={status}
-                onChange={e => setStatus(e.target.value as 'active' | 'non-active')}
+                onChange={e => setStatus(e.target.value as 'active' | 'non_active')}
               >
                 <option value="active">Aktif</option>
-                <option value="non-active">Non-Aktif</option>
+                <option value="non_active">Non-Aktif</option>
               </select>
             </Field>
           </div>
+
+          <ImageUploadField label="Foto Profil" upload={avatar} hint="Foto profil pengguna" />
         </motion.div>
 
         {isSeller && (
@@ -282,13 +291,9 @@ export function AdminTambahAkun() {
               />
             </Field>
 
-            <Field label="URL QRIS">
-              <input
-                className="input-base w-full"
-                value={qrisImage} placeholder="https://..."
-                onChange={e => setQrisImage(e.target.value)}
-              />
-            </Field>
+            <ImageUploadField label="Foto Kantin" upload={image} hint="Foto tampilan kantin / toko" />
+
+            <ImageUploadField label="Gambar QRIS" upload={qris} fit="contain" hint="Gambar kode QRIS untuk pembayaran" />
 
             <div className="flex items-center justify-between py-1">
               <div>
@@ -318,7 +323,7 @@ export function AdminTambahAkun() {
         </button>
         <button
           onClick={handleSubmit}
-          disabled={submitLoading || saved}
+          disabled={submitLoading || saved || anyUploading}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 disabled:opacity-70 ${
             saved ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-400' : 'btn-primary'
           }`}

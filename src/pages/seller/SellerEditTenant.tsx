@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -10,17 +10,14 @@ import {
   Loader2,
   ToggleLeft,
   ToggleRight,
-  X, Upload
 } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { AxiosError } from "axios";
 import type { ErrorResponse, UpdateSellerTenantPayload } from "@/lib/api/types";
 import { Field } from "@/components/ui/Field";
 import { sellerApi } from "@/lib/api/seller.api";
-import { resolveImageUrl } from "@/lib/resolveImageUrl";
-
-const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+import { ImageUploadField } from "@/components/ui/ImageUploadField";
+import { useImageUpload, imagePatch } from "@/hooks/useImageUpload";
 
 function InputIcon({
   icon,
@@ -53,17 +50,19 @@ export function SellerEditTenant() {
   const [isOpen, setIsOpen] = useState(() => user?.isOpen ?? true);
   const [openLabel, setOpenLabel] = useState(() => user?.openLabel ?? "");
 
-  const [imageUrl, setImageUrl] = useState(() => user?.image ?? "");
-  const [imagePreview, setImagePreview] = useState(() => resolveImageUrl(user?.image));
-  const [qrisImageUrl, setQrisImageUrl] = useState(() => user?.qrisImage ?? "");
-  const [qrisImagePreview, setQrisImagePreview] = useState(() => resolveImageUrl(user?.qrisImage));
-  const [uploadLoading, setUploadLoading] = useState(false);
+  const image = useImageUpload("tenant");
+  const qris = useImageUpload("qris");
+
+  // Isi nilai awal dari data akun; ikut ter-reset setelah simpan (setUser) sehingga status "berubah" kembali bersih.
+  const initImage = image.init;
+  const initQris = qris.init;
+  useEffect(() => { initImage(user?.image); }, [user?.image, initImage]);
+  useEffect(() => { initQris(user?.qrisImage); }, [user?.qrisImage, initQris]);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const clearError = (key: string) => setErrors((p) => ({ ...p, [key]: "" }));
 
   const validate = () => {
@@ -72,36 +71,6 @@ export function SellerEditTenant() {
     if (!location.trim()) e.location = "Lokasi wajib diisi.";
     setErrors(e);
     return Object.keys(e).length === 0;
-  };
-
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const localUrl = URL.createObjectURL(file);
-    setImagePreview(localUrl);
-    setUploadLoading(true);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-
-      const res = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
-        { method: "POST", body: formData },
-      );
-      const data = await res.json();
-      if (data.secure_url) {
-        setImageUrl(data.secure_url);
-      } else {
-        setErrors((p) => ({ ...p, image: "Gagal upload gambar." }));
-      }
-    } catch {
-      setErrors((p) => ({ ...p, image: "Gagal upload gambar." }));
-    } finally {
-      setUploadLoading(false);
-    }
   };
 
   const handleSave = async () => {
@@ -114,8 +83,8 @@ export function SellerEditTenant() {
       location: location.trim(),
       isOpen,
       openLabel: openLabel.trim(),
-      ...(imageUrl && { image: imageUrl }),
-      ...(qrisImageUrl && { qrisImage: qrisImageUrl }),
+      ...imagePatch("image", image),
+      ...imagePatch("qrisImage", qris),
     };
 
     try {
@@ -285,101 +254,9 @@ export function SellerEditTenant() {
             Media & Pembayaran
           </h2>
 
-          <Field label="Gambar Tenant" error={errors.image}>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleImageChange}
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadLoading}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-surface-200 dark:border-surface-700 text-sm text-surface-500 dark:text-surface-400 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors disabled:opacity-60"
-            >
-              {uploadLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" /> Mengupload...
-                </>
-              ) : (
-                <>
-                  <Upload className="w-4 h-4" /> Ganti Gambar
-                </>
-              )}
-            </button>
-            {imagePreview && (
-              <div className="relative mt-2 w-full">
-                <img
-                  src={imagePreview}
-                  alt="Preview"
-                  className="w-full h-36 object-cover rounded-xl"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none'; }}
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setImagePreview("");
-                    setImageUrl("");
-                    if (fileInputRef.current) fileInputRef.current.value = "";
-                  }}
-                  className="absolute top-2 right-2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            )}
-          </Field>
-          
-          <Field label="Gambar Qris" error={errors.image}>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleImageChange}
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadLoading}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-surface-200 dark:border-surface-700 text-sm text-surface-500 dark:text-surface-400 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors disabled:opacity-60"
-            >
-              {uploadLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" /> Mengupload...
-                </>
-              ) : (
-                <>
-                  <Upload className="w-4 h-4" /> Ganti Gambar
-                </>
-              )}
-            </button>
-            {qrisImagePreview && (
-              <div className="relative mt-2 w-full">
-                <img
-                  src={qrisImagePreview}
-                  alt="Preview"
-                  className="w-full h-36 object-cover rounded-xl"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none'; }}
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setQrisImagePreview("");
-                    setQrisImageUrl("");
-                    if (fileInputRef.current) fileInputRef.current.value = "";
-                  }}
-                  className="absolute top-2 right-2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            )}
-          </Field>
+          <ImageUploadField label="Gambar Tenant" upload={image} hint="Foto tampilan kantin" />
+
+          <ImageUploadField label="Gambar QRIS" upload={qris} fit="contain" hint="Kode QRIS untuk pembayaran" />
         </motion.div>
       </div>
 
@@ -397,7 +274,7 @@ export function SellerEditTenant() {
         </button>
         <button
           onClick={() => void handleSave()}
-          disabled={loading || saved}
+          disabled={loading || saved || image.uploading || qris.uploading}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 disabled:opacity-70 ${
             saved
               ? "bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-400"

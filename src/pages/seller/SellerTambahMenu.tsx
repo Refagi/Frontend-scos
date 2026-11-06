@@ -1,10 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, Check, AlertTriangle,
   Loader2, UtensilsCrossed, ToggleLeft, ToggleRight,
-  Upload, X,
 } from 'lucide-react';
 import { sellerApi } from '@/lib/api/seller.api';
 import type { CreateMenuPayload, ErrorResponse } from '@/lib/api/types';
@@ -12,6 +11,8 @@ import { AxiosError } from 'axios';
 import { formatCurrency } from '@/lib/utils';
 import { Badge } from '@/components/ui';
 import { Field } from '@/components/ui/Field';
+import { ImageUploadField } from '@/components/ui/ImageUploadField';
+import { useImageUpload, imagePatch } from '@/hooks/useImageUpload';
 
 type Category = 'Makanan_Berat' | 'Cemilan' | 'Minuman';
 
@@ -27,9 +28,6 @@ const CATEGORY_CFG: Record<Category, { variant: 'blue' | 'gold' | 'green' }> = {
   Minuman:       { variant: 'green' },
 };
 
-const CLOUDINARY_CLOUD_NAME   = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-
 export function SellerTambahMenu() {
   const navigate = useNavigate();
 
@@ -39,54 +37,13 @@ export function SellerTambahMenu() {
   const [category,    setCategory]    = useState<Category>('Makanan_Berat');
   const [isAvailable, setIsAvailable] = useState(true);
   const [stock,       setStock]       = useState('');
-  const [imageUrl,    setImageUrl]    = useState('');
-  const [imagePreview, setImagePreview] = useState('');
-  const [uploadLoading, setUploadLoading] = useState(false);
+  const image = useImageUpload('menu');
 
   const [errors,        setErrors]        = useState<Record<string, string>>({});
   const [submitLoading, setSubmitLoading] = useState(false);
   const [saved,         setSaved]         = useState(false);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   const clearError = (key: string) => setErrors(p => ({ ...p, [key]: '' }));
-
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setImagePreview(URL.createObjectURL(file));
-    setUploadLoading(true);
-    clearError('image');
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-
-      const res  = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
-        { method: 'POST', body: formData }
-      );
-      const data = await res.json() as { secure_url?: string };
-
-      if (data.secure_url) {
-        setImageUrl(data.secure_url);
-      } else {
-        setErrors(p => ({ ...p, image: 'Gagal upload gambar.' }));
-      }
-    } catch {
-      setErrors(p => ({ ...p, image: 'Gagal upload gambar.' }));
-    } finally {
-      setUploadLoading(false);
-    }
-  };
-
-  const handleRemoveImage = () => {
-    setImagePreview('');
-    setImageUrl('');
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -108,7 +65,7 @@ export function SellerTambahMenu() {
       price:       Number(price),
       category,
       isAvailable,
-      ...(imageUrl        && { image: imageUrl }),
+      ...imagePatch('image', image),
       ...(stock !== ''    && { stock: Number(stock) }),
     };
 
@@ -149,9 +106,9 @@ export function SellerTambahMenu() {
         initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.06 }}
         className="card flex items-center gap-4"
       >
-        {imagePreview ? (
+        {image.preview ? (
           <img
-            src={imagePreview}
+            src={image.preview}
             alt="preview"
             className="w-16 h-16 rounded-2xl object-cover flex-shrink-0 shadow"
           />
@@ -230,47 +187,7 @@ export function SellerTambahMenu() {
             </div>
           </Field>
 
-          <Field label="Gambar Menu" error={errors.image}>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleImageChange}
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadLoading}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-surface-200 dark:border-surface-700 text-sm text-surface-500 dark:text-surface-400 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors disabled:opacity-60"
-            >
-              {uploadLoading
-                ? <><Loader2 className="w-4 h-4 animate-spin" /> Mengupload...</>
-                : <><Upload className="w-4 h-4" /> Pilih Gambar</>
-              }
-            </button>
-            {imagePreview && (
-              <div className="relative mt-2 w-full">
-                <img
-                  src={imagePreview}
-                  alt="Preview"
-                  className="w-full h-36 object-cover rounded-xl"
-                />
-                <button
-                  type="button"
-                  onClick={handleRemoveImage}
-                  className="absolute top-2 right-2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-                {uploadLoading && (
-                  <div className="absolute inset-0 bg-black/30 rounded-xl flex items-center justify-center">
-                    <Loader2 className="w-6 h-6 text-white animate-spin" />
-                  </div>
-                )}
-              </div>
-            )}
-          </Field>
+          <ImageUploadField label="Gambar Menu" upload={image} />
         </motion.div>
 
         <motion.div
@@ -331,7 +248,7 @@ export function SellerTambahMenu() {
         </button>
         <button
           onClick={handleSubmit}
-          disabled={submitLoading || saved || uploadLoading}
+          disabled={submitLoading || saved || image.uploading}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 disabled:opacity-70 ${
             saved ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-400' : 'btn-primary'
           }`}

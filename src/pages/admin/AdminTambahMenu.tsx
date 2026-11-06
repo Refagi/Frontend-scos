@@ -12,6 +12,8 @@ import { AxiosError } from 'axios';
 import { formatCurrency } from '@/lib/utils';
 import { Badge } from '@/components/ui';
 import { Field } from '@/components/ui/Field';
+import { ImageUploadField } from '@/components/ui/ImageUploadField';
+import { useImageUpload, imagePatch } from '@/hooks/useImageUpload';
 
 type Category = 'Makanan_Berat' | 'Cemilan' | 'Minuman';
 
@@ -71,6 +73,7 @@ export function AdminTambahMenu() {
   const [isAvailable, setIsAvailable] = useState(true);
   const [stock,       setStock]       = useState('');
   const [sellerId,    setSellerId]    = useState('');
+  const image = useImageUpload('menu');
 
   const [errors,        setErrors]        = useState<Record<string, string>>({});
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -102,6 +105,7 @@ export function AdminTambahMenu() {
       category,
       isAvailable,
       sellerId,
+      ...imagePatch('image', image),
       ...(stock !== '' && { stock: Number(stock) }),
     };
 
@@ -125,7 +129,6 @@ export function AdminTambahMenu() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
 
-      {/* ── Header ── */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
         className="flex items-center gap-3">
         <button
@@ -144,9 +147,13 @@ export function AdminTambahMenu() {
         initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.06 }}
         className="card flex items-center gap-4"
       >
-        <div className="w-16 h-16 rounded-2xl bg-surface-100 dark:bg-surface-700 flex items-center justify-center flex-shrink-0">
-          <UtensilsCrossed className="w-7 h-7 text-surface-400" />
-        </div>
+        {image.preview ? (
+          <img src={image.preview} alt="preview" className="w-16 h-16 rounded-2xl object-cover flex-shrink-0 shadow" />
+        ) : (
+          <div className="w-16 h-16 rounded-2xl bg-surface-100 dark:bg-surface-700 flex items-center justify-center flex-shrink-0">
+            <UtensilsCrossed className="w-7 h-7 text-surface-400" />
+          </div>
+        )}
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-surface-900 dark:text-white truncate">
             {name || 'Nama Menu'}
@@ -235,6 +242,8 @@ export function AdminTambahMenu() {
               ))}
             </select>
           </Field>
+
+          <ImageUploadField label="Gambar Menu" upload={image} />
         </motion.div>
 
         <motion.div
@@ -293,7 +302,7 @@ export function AdminTambahMenu() {
         </button>
         <button
           onClick={handleSubmit}
-          disabled={submitLoading || saved}
+          disabled={submitLoading || saved || image.uploading}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 disabled:opacity-70 ${
             saved ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-400' : 'btn-primary'
           }`}

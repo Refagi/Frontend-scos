@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   User as UserIcon, Mail, Phone, MapPin, Store,
   ChevronLeft, Check, ShieldCheck, AlertTriangle,
-  Loader2, ToggleLeft, ToggleRight, Upload, X,
+  Loader2, ToggleLeft, ToggleRight,
 } from "lucide-react";
 import { adminApi } from "@/lib/api/admin.api";
 import type { AxiosError } from "axios";
@@ -12,30 +12,8 @@ import { useAuthStore } from "@/store/authStore";
 import WarningModal from "@/components/ui/WarningModal";
 import { Field } from "@/components/ui/Field";
 import type { ErrorResponse, EditAkunPayload } from "@/lib/api/types";
-import { cld } from "@/lib/cloudinary";
-import { fill } from "@cloudinary/url-gen/actions/resize";
-import { autoGravity } from "@cloudinary/url-gen/qualifiers/gravity";
-
-const CLOUDINARY_CLOUD_NAME    = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-
-function resolveImageUrl(raw: string | null | undefined, size = 240): string {
-  if (!raw) return "";
-  const uploadIdx = raw.indexOf("/upload/");
-  if (uploadIdx === -1) return raw;
-  const afterUpload = raw.slice(uploadIdx + 8);
-  const publicId = afterUpload.replace(/^v\d+\//, "").replace(/\.[^.]+$/, "");
-  try {
-    return cld
-      .image(publicId)
-      .resize(fill().width(size).height(size).gravity(autoGravity()))
-      .quality("auto")
-      .format("auto")
-      .toURL();
-  } catch {
-    return raw;
-  }
-}
+import { ImageUploadField } from "@/components/ui/ImageUploadField";
+import { useImageUpload, imagePatch } from "@/hooks/useImageUpload";
 
 function InputIcon({
   icon, error, ...props
@@ -45,54 +23,6 @@ function InputIcon({
       <span className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400">{icon}</span>
       <input className={`input-base pl-9 ${error ? "border-red-400" : ""}`} {...props} />
     </div>
-  );
-}
-
-interface UploadFieldProps {
-  label:        string;
-  previewUrl:   string;
-  uploading:    boolean;
-  error?:       string;
-  onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onRemove:     () => void;
-  hint?:        string;
-}
-
-function UploadField({ label, previewUrl, uploading, error, onFileChange, onRemove, hint }: UploadFieldProps) {
-  const ref = useRef<HTMLInputElement>(null);
-  return (
-    <Field label={label} error={error}>
-      <input ref={ref} type="file" accept="image/*" className="hidden" onChange={onFileChange} />
-      <button
-        type="button"
-        onClick={() => ref.current?.click()}
-        disabled={uploading}
-        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-surface-200 dark:border-surface-700 text-sm text-surface-500 dark:text-surface-400 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors disabled:opacity-60"
-      >
-        {uploading
-          ? <><Loader2 className="w-4 h-4 animate-spin" /> Mengupload...</>
-          : <><Upload className="w-4 h-4" /> {previewUrl ? "Ganti Gambar" : "Pilih Gambar"}</>
-        }
-      </button>
-      {hint && <p className="text-xs text-surface-400 mt-1">{hint}</p>}
-      {previewUrl && (
-        <div className="relative mt-2">
-          <img src={previewUrl} alt="preview" className="w-full h-36 object-cover rounded-xl" />
-          <button
-            type="button"
-            onClick={onRemove}
-            className="absolute top-2 right-2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
-          >
-            <X className="w-3 h-3" />
-          </button>
-          {uploading && (
-            <div className="absolute inset-0 bg-black/30 rounded-xl flex items-center justify-center">
-              <Loader2 className="w-6 h-6 text-white animate-spin" />
-            </div>
-          )}
-        </div>
-      )}
-    </Field>
   );
 }
 
@@ -108,7 +38,7 @@ export function AdminEditAkun() {
   const [name,      setName]      = useState("");
   const [email,     setEmail]     = useState("");
   const [phone,     setPhone]     = useState("");
-  const [status,    setStatus]    = useState<"active" | "non-active">("active");
+  const [status,    setStatus]    = useState<"active" | "non_active">("active");
 
   const [storeName,    setStoreName]    = useState("");
   const [description,  setDescription]  = useState("");
@@ -116,17 +46,9 @@ export function AdminEditAkun() {
   const [isOpen,       setIsOpen]       = useState(true);
   const [openLabel,    setOpenLabel]    = useState("");
 
-  const [avatarUrl,     setAvatarUrl]     = useState("");
-  const [avatarPreview, setAvatarPreview] = useState("");
-  const [avatarUploading, setAvatarUploading] = useState(false);
-
-  const [imageUrl,      setImageUrl]      = useState(""); 
-  const [imagePreview,  setImagePreview]  = useState("");
-  const [imageUploading, setImageUploading] = useState(false);
-
-  const [qrisUrl,       setQrisUrl]       = useState("");
-  const [qrisPreview,   setQrisPreview]   = useState("");
-  const [qrisUploading, setQrisUploading] = useState(false);
+  const avatar = useImageUpload("avatar");
+  const image  = useImageUpload("tenant");
+  const qris   = useImageUpload("qris");
 
   const [errors,        setErrors]        = useState<Record<string, string>>({});
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -137,7 +59,10 @@ export function AdminEditAkun() {
   const isSeller   = userRole === "seller";
   const initials   = name ? name.charAt(0).toUpperCase() : "?";
 
-  const anyUploading = avatarUploading || imageUploading || qrisUploading;
+  const initAvatar = avatar.init;
+  const initImage  = image.init;
+  const initQris   = qris.init;
+  const anyUploading = avatar.uploading || image.uploading || qris.uploading;
 
   useEffect(() => {
     if (!userId) return;
@@ -157,21 +82,16 @@ export function AdminEditAkun() {
         setName(u.name ?? "");
         setEmail(u.email ?? "");
         setPhone(u.phone ?? "");
-        setStatus(u.status === "active" ? "active" : "non-active");
+        setStatus(u.status === "active" ? "active" : "non_active");
         setStoreName(u.storeName ?? "");
         setDescription(u.description ?? "");
         setLocation(u.location ?? "");
         setIsOpen(u.isOpen ?? true);
         setOpenLabel(u.openLabel ?? "");
 
-        setAvatarUrl(u.avatar ?? "");
-        setAvatarPreview(resolveImageUrl(u.avatar));
-
-        setImageUrl(u.image ?? "");
-        setImagePreview(resolveImageUrl(u.image));
-
-        setQrisUrl(u.qrisImage ?? "");
-        setQrisPreview(resolveImageUrl(u.qrisImage));
+        initAvatar(u.avatar);
+        initImage(u.image);
+        initQris(u.qrisImage);
 
         if (u.role === "admin" && currentUser?.id !== userId) setShowWarning(true);
       } catch (err: unknown) {
@@ -185,45 +105,7 @@ export function AdminEditAkun() {
 
     void load();
     return () => { cancelled = true; };
-  }, [userId, currentUser?.id]);
-
-  const uploadToCloudinary = async (file: File): Promise<string> => {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-    const res  = await fetch(
-      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
-      { method: "POST", body: formData }
-    );
-    const data = await res.json() as { secure_url?: string };
-    if (!data.secure_url) throw new Error("Upload gagal");
-    return data.secure_url;
-  };
-
-  const makeUploadHandler = (
-    setPreview:   (v: string) => void,
-    setUrl:       (v: string) => void,
-    setUploading: (v: boolean) => void,
-    errorKey:     string,
-  ) => async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPreview(URL.createObjectURL(file));
-    setUploading(true);
-    setErrors(p => ({ ...p, [errorKey]: "" }));
-    try {
-      const url = await uploadToCloudinary(file);
-      setUrl(url);
-    } catch {
-      setErrors(p => ({ ...p, [errorKey]: "Gagal upload gambar." }));
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleAvatarChange = makeUploadHandler(setAvatarPreview, setAvatarUrl, setAvatarUploading, "avatar");
-  const handleImageChange  = makeUploadHandler(setImagePreview,  setImageUrl,  setImageUploading,  "image");
-  const handleQrisChange   = makeUploadHandler(setQrisPreview,   setQrisUrl,   setQrisUploading,   "qris");
+  }, [userId, currentUser?.id, initAvatar, initImage, initQris]);
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -247,7 +129,7 @@ export function AdminEditAkun() {
       name:   name.trim(),
       email:  email.trim(),
       ...(phone && { phone }),
-      ...(avatarUrl && { avatar: avatarUrl }),
+      ...imagePatch("avatar", avatar),
       ...(!isSelfEdit && { status }),
       ...(isSeller && {
         storeName,
@@ -255,8 +137,8 @@ export function AdminEditAkun() {
         location,
         isOpen,
         openLabel,
-        ...(imageUrl && { image: imageUrl }),
-        ...(qrisUrl  && { qrisImage: qrisUrl }),
+        ...imagePatch("image", image),
+        ...imagePatch("qrisImage", qris),
       }),
     };
 
@@ -313,9 +195,9 @@ export function AdminEditAkun() {
         initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.06 }}
         className="card flex items-center gap-4"
       >
-        {avatarPreview ? (
+        {avatar.preview ? (
           <img
-            src={avatarPreview}
+            src={avatar.preview}
             alt={name}
             className="w-14 h-14 rounded-2xl object-cover flex-shrink-0 shadow"
           />
@@ -376,22 +258,14 @@ export function AdminEditAkun() {
           {!isSelfEdit && (
             <Field label="Status">
               <select className="input-base" value={status}
-                onChange={e => setStatus(e.target.value as "active" | "non-active")}>
+                onChange={e => setStatus(e.target.value as "active" | "non_active")}>
                 <option value="active">Aktif</option>
-                <option value="non-active">Non-Aktif</option>
+                <option value="non_active">Non-Aktif</option>
               </select>
             </Field>
           )}
 
-          <UploadField
-            label="Foto Profil"
-            previewUrl={avatarPreview}
-            uploading={avatarUploading}
-            error={errors.avatar}
-            onFileChange={handleAvatarChange}
-            onRemove={() => { setAvatarPreview(""); setAvatarUrl(""); }}
-            hint="Foto profil pengguna"
-          />
+          <ImageUploadField label="Foto Profil" upload={avatar} hint="Foto profil pengguna" />
         </motion.div>
 
         {isSeller && (
@@ -422,25 +296,9 @@ export function AdminEditAkun() {
                 onChange={e => setOpenLabel(e.target.value)} />
             </Field>
 
-            <UploadField
-              label="Foto Kantin"
-              previewUrl={imagePreview}
-              uploading={imageUploading}
-              error={errors.image}
-              onFileChange={handleImageChange}
-              onRemove={() => { setImagePreview(""); setImageUrl(""); }}
-              hint="Foto tampilan kantin / toko"
-            />
+            <ImageUploadField label="Foto Kantin" upload={image} hint="Foto tampilan kantin / toko" />
 
-            <UploadField
-              label="Gambar QRIS"
-              previewUrl={qrisPreview}
-              uploading={qrisUploading}
-              error={errors.qris}
-              onFileChange={handleQrisChange}
-              onRemove={() => { setQrisPreview(""); setQrisUrl(""); }}
-              hint="Gambar kode QRIS untuk pembayaran"
-            />
+            <ImageUploadField label="Gambar QRIS" upload={qris} fit="contain" hint="Gambar kode QRIS untuk pembayaran" />
 
             <div className="flex items-center justify-between py-1">
               <div>

@@ -9,7 +9,7 @@ export interface TambahAkunPayload {
   email:        string
   password:     string
   role:         UserRole
-  status?:      'active' | 'non-active'
+  status?:      'active' | 'non_active'
   phone?:       string
 
   storeName?:   string
@@ -17,16 +17,18 @@ export interface TambahAkunPayload {
   location?:    string
   isOpen?:      boolean
   openLabel?:   string
-  logo?:        string
-  image?:       string
-  qrisImage?:   string
+  // gambar: string = URL baru, null = hapus, tidak dikirim = tidak berubah
+  avatar?:      string | null
+  logo?:        string | null
+  image?:       string | null
+  qrisImage?:   string | null
 }
 
 export type EditAkunPayload = Partial<TambahAkunPayload>
 
 export type GetDaftarAkunQuery = {
   role?: 'admin' | 'seller' | 'customer';
-  status?: 'active' | 'non-active';
+  status?: 'active' | 'non_active';
   page?: number;
   limit?: number;
 };
@@ -76,7 +78,7 @@ export interface UserResponse {
   name:        string
   email:       string
   role:        UserRole
-  status:      'active' | 'non-active'
+  status:      'active' | 'non_active'
   phone?:      string | null
   avatar?:     string | null
 

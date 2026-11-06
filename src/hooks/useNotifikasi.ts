@@ -74,17 +74,23 @@ export function useNotifikasi() {
 
   const tandaiDibaca = useCallback(async (notifId: string) => {
     markRead(notifId)
-    try { await notifikasiApi.tandaiDibaca(notifId) } catch {}
+    try { await notifikasiApi.tandaiDibaca(notifId) } catch {
+      //
+    }
   }, [markRead])
 
   const tandaiSemuaDibaca = useCallback(async () => {
     markAllRead()
-    try { await notifikasiApi.tandaiSemuaDibaca() } catch {}
+    try { await notifikasiApi.tandaiSemuaDibaca() } catch {
+      //
+    }
   }, [markAllRead])
 
   const hapusSemua = useCallback(async () => {
     clearAll()
-    try { await notifikasiApi.hapusSemua() } catch {}
+    try { await notifikasiApi.hapusSemua() } catch {
+      //
+    }
   }, [clearAll])
 
   return {

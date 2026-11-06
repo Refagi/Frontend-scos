@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ChevronLeft, Check, AlertTriangle, Loader2, UtensilsCrossed,
-  ToggleLeft, ToggleRight, Trash2, Upload, X
+  ToggleLeft, ToggleRight, Trash2
 } from "lucide-react";
 import { adminApi } from "@/lib/api/admin.api";
 import type {
@@ -15,11 +15,9 @@ import type { AxiosError } from "axios";
 import { formatCurrency } from "@/lib/utils";
 import { DeleteModal } from "@/components/ui/DeleteModal";
 import { Badge } from "@/components/ui";
-import { resolveImageUrl } from "@/lib/resolveImageUrl";
+import { ImageUploadField } from "@/components/ui/ImageUploadField";
+import { useImageUpload, imagePatch } from "@/hooks/useImageUpload";
 import { Field } from "@/components/ui/Field";
-
-const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
 const CATEGORY_CFG = {
   Makanan_Berat: { variant: "blue" as const },
@@ -43,18 +41,15 @@ export function AdminEditMenu() {
   const [isAvailable, setIsAvailable] = useState(true);
   const [stock, setStock] = useState("");
 
-  const [imageUrl, setImageUrl] = useState("");
-  const [imagePreview, setImagePreview] = useState("");
-  const [uploadLoading, setUploadLoading] = useState(false);
+  const image = useImageUpload("menu");
+  const initImage = image.init;
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitLoading, setSubmitLoading] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [imgErrored, setImgErrored] = useState(false);
+  const [brokenSrc, setBrokenSrc] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!menuId) return;
@@ -81,8 +76,7 @@ export function AdminEditMenu() {
         setCategory(menu.category);
         setIsAvailable(menu.isAvailable);
         setStock(menu.stock != null ? String(menu.stock) : "");
-        setImageUrl(menu.image ?? "");
-        setImagePreview(resolveImageUrl(menu.image));
+        initImage(menu.image);
       } catch (err: unknown) {
         if (cancelled) return;
         const axiosError = err as AxiosError<ErrorResponse>;
@@ -98,39 +92,7 @@ export function AdminEditMenu() {
     return () => {
       cancelled = true;
     };
-  }, [menuId]);
-
-
-    const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const localUrl = URL.createObjectURL(file);
-    setImagePreview(localUrl);
-    setImgErrored(false);
-    setUploadLoading(true);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-
-      const res = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
-        { method: "POST", body: formData }
-      );
-      const data = await res.json();
-      if (data.secure_url) {
-        setImageUrl(data.secure_url);
-      } else {
-        setErrors((p) => ({ ...p, image: "Gagal upload gambar." }));
-      }
-    } catch {
-      setErrors((p) => ({ ...p, image: "Gagal upload gambar." }));
-    } finally {
-      setUploadLoading(false);
-    }
-  };
+  }, [menuId, initImage]);
 
 
   const validate = () => {
@@ -155,6 +117,7 @@ export function AdminEditMenu() {
       price: Number(price),
       category,
       isAvailable,
+      ...imagePatch("image", image),
       ...(stock !== "" && { stock: Number(stock) }),
     };
 
@@ -238,11 +201,11 @@ export function AdminEditMenu() {
           transition={{ delay: 0.06 }}
           className="card flex items-center gap-4"
         >
-          {imageUrl && !imgErrored ? (
+          {image.preview && brokenSrc !== image.preview ? (
             <img
-              src={imageUrl}
+              src={image.preview}
               alt={menuData?.name}
-              onError={() => setImgErrored(true)}
+              onError={() => setBrokenSrc(image.preview)}
               className="w-16 h-16 rounded-2xl object-cover flex-shrink-0 bg-surface-100 dark:bg-surface-700 shadow"
             />
           ) : (
@@ -336,44 +299,7 @@ export function AdminEditMenu() {
               </div>
             </Field>
             
-            <Field label="Gambar Menu" error={errors.image}>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleImageChange}
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadLoading}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-surface-200 dark:border-surface-700 text-sm text-surface-500 dark:text-surface-400 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors disabled:opacity-60"
-              >
-                {uploadLoading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Mengupload...</>
-                ) : (
-                  <><Upload className="w-4 h-4" /> Ganti Gambar</>
-                )}
-              </button>
-              {imagePreview && !imgErrored && (
-                <div className="relative mt-2 w-full">
-                  <img
-                    src={imagePreview}
-                    alt="Preview"
-                    className="w-full h-36 object-cover rounded-xl"
-                    onError={() => setImgErrored(true)}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => { setImagePreview(""); setImageUrl(""); if (fileInputRef.current) fileInputRef.current.value = ""; }}
-                    className="absolute top-2 right-2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              )}
-            </Field>
+            <ImageUploadField label="Gambar Menu" upload={image} />
           </motion.div>
 
           <motion.div
@@ -464,7 +390,7 @@ export function AdminEditMenu() {
           </button>
           <button
             onClick={handleSubmit}
-            disabled={submitLoading || saved}
+            disabled={submitLoading || saved || image.uploading}
             className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 ${
               saved
                 ? "bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-400"

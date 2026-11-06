@@ -11,7 +11,7 @@ export interface User {
   email: string;
   role: UserRole;
   avatar?: string;
-  status?: 'active' | 'non-active';
+  status?: 'active' | 'non_active';
 }
 
 export interface Seller {
