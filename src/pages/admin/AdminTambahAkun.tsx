@@ -47,7 +47,7 @@ export function AdminTambahAkun() {
   const [showPw,      setShowPw]      = useState(false);
   const [phone,       setPhone]       = useState('');
   const [role,        setRole]        = useState<UserRole>('customer');
-  const [status,      setStatus]      = useState<'active' | 'non_active'>('active');
+  const [status,      setStatus]      = useState<'active' | 'non-active'>('active');
   // seller fields
   const [storeName,   setStoreName]   = useState('');
   const [description, setDescription] = useState('');
@@ -241,10 +241,10 @@ export function AdminTambahAkun() {
               <select
                 className="input-base"
                 value={status}
-                onChange={e => setStatus(e.target.value as 'active' | 'non_active')}
+                onChange={e => setStatus(e.target.value as 'active' | 'non-active')}
               >
                 <option value="active">Aktif</option>
-                <option value="non_active">Non-Aktif</option>
+                <option value="non-active">Non-Aktif</option>
               </select>
             </Field>
           </div>

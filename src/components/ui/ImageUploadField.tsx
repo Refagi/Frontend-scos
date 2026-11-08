@@ -11,10 +11,12 @@ interface ImageUploadFieldProps {
   hint?: string;
   /** 'contain' untuk gambar yang tidak boleh terpotong (mis. QRIS). */
   fit?: 'cover' | 'contain';
+  /** Preview lebih tinggi (untuk screenshot / bukti bayar yang memanjang). */
+  tall?: boolean;
   required?: boolean;
 }
 
-export function ImageUploadField({ label, upload, hint, fit = 'cover', required }: ImageUploadFieldProps) {
+export function ImageUploadField({ label, upload, hint, fit = 'cover', tall = false, required }: ImageUploadFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [brokenSrc, setBrokenSrc] = useState('');
@@ -95,7 +97,7 @@ export function ImageUploadField({ label, upload, hint, fit = 'cover', required 
             src={preview}
             alt={`Preview ${label}`}
             onError={() => setBrokenSrc(preview)}
-            className={`w-full h-36 rounded-xl ${
+            className={`w-full ${tall ? 'h-64' : 'h-36'} rounded-xl ${
               fit === 'contain' ? 'object-contain bg-surface-50 dark:bg-surface-800' : 'object-cover'
             }`}
           />

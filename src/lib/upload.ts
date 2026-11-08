@@ -8,7 +8,7 @@ export const IMAGE_ACCEPT = 'image/png,image/jpeg';
 export const IMAGE_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 export const IMAGE_RULE_TEXT = 'PNG, JPG, atau JPEG • maks. 10 MB';
 
-export type UploadPurpose = 'avatar' | 'tenant' | 'qris' | 'menu';
+export type UploadPurpose = 'avatar' | 'tenant' | 'qris' | 'menu' | 'payment_proof';
 
 export class UploadError extends Error {
   constructor(message: string) {
@@ -63,6 +63,12 @@ function readErrorMessage(err: unknown): string {
   return data?.message ?? 'Gagal mengupload gambar. Periksa koneksi lalu coba lagi.';
 }
 
+/**
+ * Upload gambar ke Cloudinary memakai signed upload:
+ *  1. minta tanda tangan ke backend (backend menentukan folder & format yang diizinkan),
+ *  2. kirim file langsung dari browser ke Cloudinary,
+ *  3. kembalikan secure_url untuk disimpan lewat form.
+ */
 export async function uploadImage(
   file: File,
   purpose: UploadPurpose,
@@ -87,7 +93,6 @@ export async function uploadImage(
   Object.entries(sig.params).forEach(([key, value]) => form.append(key, String(value)));
 
   try {
-    // axios polos (bukan instance  lib`api`): tidak boleh membawa cookie ke domain Cloudinary.
     const res = await axios.post<{ secure_url?: string }>(sig.uploadUrl, form, {
       signal,
       timeout: 60_000,

@@ -2,11 +2,13 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   Clock, CheckCircle2, ChefHat,
-  Package, Loader2, ArrowRight,
+  Package, ArrowRight, Upload,
 } from 'lucide-react'
 import type { PesananResponse } from '@/lib/api/types'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
+import { cashPaymentNote, readyLabel } from '@/lib/orderMeta'
 import { OrderTracker } from './OrderTracker'
+import { OrderMetaBadges } from './OrderMetaBadges'
 
 const STATUS_CFG: Record<string, {
   label: string
@@ -41,23 +43,26 @@ const STATUS_CFG: Record<string, {
 }
 
 interface ActiveOrderCardProps {
-  order:         PesananResponse
-  onKonfirmasi?: (id: string) => void
-  konfirmingId?: string | null
-  detailPath?:   string
+  order:       PesananResponse
+  detailPath?: string
 }
 
 export function ActiveOrderCard({
   order,
-  onKonfirmasi,
-  konfirmingId,
   detailPath,
 }: ActiveOrderCardProps) {
   const navigate     = useNavigate()
   const cfg          = STATUS_CFG[order.status]
   const sellerName   = order.seller?.storeName ?? order.seller?.name ?? '—'
-  const isKonfirming = konfirmingId === order.id
   const targetPath   = detailPath ?? `/customer/order/success/${order.id}`
+  const isCash       = order.paymentMethod === 'cash'
+  // QRIS yang belum dibayar: bukti pembayaran dikirim dari halaman detail
+  const needsProof   = !isCash && !order.isPaid && order.status === 'menunggu'
+
+  const statusLabel =
+    order.status === 'siap'     ? `${readyLabel(order.orderType)}!`
+    : needsProof                ? 'Menunggu Pembayaran'
+    : cfg?.label
 
   return (
     <motion.div
@@ -69,7 +74,7 @@ export function ActiveOrderCard({
     >
       <div className={`flex items-center gap-2 px-4 py-2.5 ${cfg?.bg}`}>
         <span className={cfg?.color}>{cfg?.icon}</span>
-        <span className={`text-xs font-bold ${cfg?.color}`}>{cfg?.label}</span>
+        <span className={`text-xs font-bold ${cfg?.color}`}>{statusLabel}</span>
         <span className="ml-auto text-xs text-surface-400">
           {formatDateTime(order.createdAt)}
         </span>
@@ -103,19 +108,23 @@ export function ActiveOrderCard({
           )}
         </div>
 
+        <OrderMetaBadges order={order} className="mb-1" />
+
         <OrderTracker status={order.status} />
 
+        {isCash && (
+          <p className="mt-3 text-xs text-amber-700 dark:text-amber-400">
+            💵 {cashPaymentNote(order.orderType, order.tableNumber)}
+          </p>
+        )}
+
         <div className="flex gap-2 mt-4">
-          {order.status === 'menunggu' && onKonfirmasi && (
+          {needsProof && (
             <button
-              onClick={() => onKonfirmasi(order.id)}
-              disabled={isKonfirming}
-              className="flex-1 py-2 text-xs font-semibold bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white rounded-xl transition-colors flex items-center justify-center gap-1.5"
+              onClick={() => navigate(targetPath, { state: { order, seller: null } })}
+              className="flex-1 py-2 text-xs font-semibold bg-primary-500 hover:bg-primary-600 text-white rounded-xl transition-colors flex items-center justify-center gap-1.5"
             >
-              {isKonfirming
-                ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Mengirim...</>
-                : '✓ Saya Sudah Transfer'
-              }
+              <Upload className="w-3.5 h-3.5" /> Upload Bukti Bayar
             </button>
           )}
           <button

@@ -38,7 +38,7 @@ export function AdminEditAkun() {
   const [name,      setName]      = useState("");
   const [email,     setEmail]     = useState("");
   const [phone,     setPhone]     = useState("");
-  const [status,    setStatus]    = useState<"active" | "non_active">("active");
+  const [status,    setStatus]    = useState<"active" | "non-active">("active");
 
   const [storeName,    setStoreName]    = useState("");
   const [description,  setDescription]  = useState("");
@@ -82,7 +82,7 @@ export function AdminEditAkun() {
         setName(u.name ?? "");
         setEmail(u.email ?? "");
         setPhone(u.phone ?? "");
-        setStatus(u.status === "active" ? "active" : "non_active");
+        setStatus(u.status === "active" ? "active" : "non-active");
         setStoreName(u.storeName ?? "");
         setDescription(u.description ?? "");
         setLocation(u.location ?? "");
@@ -258,9 +258,9 @@ export function AdminEditAkun() {
           {!isSelfEdit && (
             <Field label="Status">
               <select className="input-base" value={status}
-                onChange={e => setStatus(e.target.value as "active" | "non_active")}>
+                onChange={e => setStatus(e.target.value as "active" | "non-active")}>
                 <option value="active">Aktif</option>
-                <option value="non_active">Non-Aktif</option>
+                <option value="non-active">Non-Aktif</option>
               </select>
             </Field>
           )}

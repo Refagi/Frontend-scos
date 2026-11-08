@@ -5,15 +5,22 @@ import { uploadImage, UploadError, validateImageFile, type UploadPurpose } from 
 
 export interface ImageUploadControl {
   preview: string;
-  /** URL yang akan disimpan ('' jika kosong). */
   value: string;
   uploading: boolean;
   progress: number;
   error: string | null;
+  /** True jika nilai berbeda dari nilai awal dari server. */
   dirty: boolean;
+  /**
+   * Nilai untuk payload ke backend:
+   *  - undefined -> tidak berubah (jangan kirim field)
+   *  - string    -> gambar baru
+   *  - null      -> gambar dihapus
+   */
   payloadValue: string | null | undefined;
   selectFile: (file: File) => Promise<void>;
   remove: () => void;
+  /** Isi nilai awal (dipanggil setelah data dari server dimuat). */
   init: (url: string | null | undefined) => void;
 }
 
@@ -121,7 +128,7 @@ export function useImageUpload(purpose: UploadPurpose): ImageUploadControl {
   const dirty = value !== initial;
 
   return {
-    preview: localPreview || resolveImageUrl(value, 640, purpose === 'qris' ? 'limit' : 'fill'),
+    preview: localPreview || resolveImageUrl(value, 640, purpose === 'qris' || purpose === 'payment_proof' ? 'limit' : 'fill'),
     value,
     uploading,
     progress,
@@ -134,9 +141,7 @@ export function useImageUpload(purpose: UploadPurpose): ImageUploadControl {
   };
 }
 
-/**
- * Helper payload: `...imagePatch('image', image)` menambahkan field hanya jika berubah.
- */
+
 export function imagePatch<K extends string>(
   key: K,
   control: Pick<ImageUploadControl, 'payloadValue'>,

@@ -19,7 +19,6 @@ export function CustomerRingkasan() {
   const [loading,  setLoading]  = useState(true)
   const [error,    setError]    = useState<string | null>(null)
   const [retryKey, setRetryKey] = useState(0)
-  const [konfirmingId, setKonfirmingId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -49,18 +48,6 @@ export function CustomerRingkasan() {
     void load()
     return () => { cancelled = true }
   }, [retryKey])
-
-  const handleKonfirmasi = async (pesananId: string) => {
-    setKonfirmingId(pesananId)
-    try {
-      await customerApi.konfirmasiPembayaran(pesananId)
-    } catch (err: unknown) {
-      const axiosError = err as AxiosError<ErrorResponse>
-      setError(axiosError.response?.data?.message ?? 'Gagal mengirim konfirmasi.')
-    } finally {
-    setKonfirmingId(null)
-  }
-  }
 
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-surface-900 pb-24">
@@ -126,8 +113,6 @@ export function CustomerRingkasan() {
               <ActiveOrderCard
                 key={order.id}
                 order={order}
-                onKonfirmasi={handleKonfirmasi}
-                konfirmingId={konfirmingId}
               />
             ))}
           </AnimatePresence>

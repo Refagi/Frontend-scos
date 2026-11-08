@@ -11,7 +11,7 @@ export interface User {
   email: string;
   role: UserRole;
   avatar?: string;
-  status?: 'active' | 'non_active';
+  status?: 'active' | 'non-active';
 }
 
 export interface Seller {
@@ -37,6 +37,8 @@ export interface MenuItem {
 }
 
 export type OrderStatus = 'menunggu' | 'ditolak' | 'diterima' | 'dimasak' | 'siap' | 'selesai';
+export type OrderType = 'dine_in' | 'takeaway';
+export type PaymentMethod = 'cash' | 'qris';
 
 export interface OrderItem {
   menuId: string;

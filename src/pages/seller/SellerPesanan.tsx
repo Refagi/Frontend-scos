@@ -38,7 +38,7 @@ const NEXT_ACTIONS: Partial<Record<OrderStatus, {
 const COLUMNS = [
   { key: 'menunggu',              label: 'Menunggu',    borderColor: 'border-t-yellow-400' },
   { key: 'diterima_dimasak',      label: 'Dimasak',     borderColor: 'border-t-blue-500'   },
-  { key: 'siap',                  label: 'Siap Diambil', borderColor: 'border-t-primary-500' },
+  { key: 'siap',                  label: 'Siap Diambil / Diantar', borderColor: 'border-t-primary-500' },
 ] as const
 
 export function SellerPesanan() {
@@ -63,9 +63,12 @@ export function SellerPesanan() {
           o => !['selesai', 'ditolak'].includes(o.status)
         )
 
+        // Pesanan yang siap diproses (sudah dibayar, atau tunai) tampil lebih dulu;
+        // QRIS yang masih menunggu bukti bayar di bawah.
+        const ready = (o: PesananResponse) => o.isPaid || o.paymentMethod === 'cash'
         aktif.sort((a, b) => {
-          if (a.isPaid === b.isPaid) return 0
-          return a.isPaid ? -1 : 1
+          if (ready(a) === ready(b)) return 0
+          return ready(a) ? -1 : 1
         })
         setPesanan(aktif)
       } catch (err: unknown) {

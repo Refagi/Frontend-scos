@@ -1,3 +1,4 @@
+import { OrderMetaBadges } from '@/components/ui/OrderMetaBadges'
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
@@ -158,6 +159,8 @@ export function CustomerRiwayat() {
                 </div>
 
                 <div className="px-4 py-3">
+                  <OrderMetaBadges order={order} className="mb-2" />
+
                   <div className="space-y-1 mb-3">
                     {order.details.slice(0, 3).map((d, idx) => (
                       <p key={idx} className="text-xs text-surface-500 dark:text-surface-400">

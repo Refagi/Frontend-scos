@@ -19,6 +19,8 @@ import type {
 import type { OrderStatus, PaginationInfo } from "@/types";
 import { AxiosError } from "axios";
 import { DeleteModal } from "@/components/ui/DeleteModal";
+import { ImagePreviewModal } from "@/components/ui/ImagePreviewModal";
+import { orderTypeText, PAYMENT_METHOD_LABEL } from "@/lib/orderMeta";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 
 const PAGE_SIZE = 10;
@@ -187,6 +189,7 @@ export function AdminPesanan() {
     null,
   );
   const [isDeleting, setIsDeleting] = useState(false);
+  const [proofTarget, setProofTarget] = useState<PesananResponse | null>(null);
 
   const latestNotif = useNotifStore((s) => s.items[0]);
 
@@ -407,7 +410,8 @@ export function AdminPesanan() {
                   <th>Pelanggan</th>
                   <th>Penjual</th>
                   <th>Total</th>
-                  <th>Slot</th>
+                  <th>Tipe</th>
+                  <th>Pembayaran</th>
                   <th>Status</th>
                   <th>Aksi</th>
                 </tr>
@@ -416,7 +420,7 @@ export function AdminPesanan() {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       className="text-center py-14 text-surface-400"
                     >
                       Memuat data...
@@ -424,7 +428,7 @@ export function AdminPesanan() {
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-14">
+                    <td colSpan={9} className="py-14">
                       <div className="flex flex-col items-center gap-2 text-surface-400">
                         <ClipboardList className="w-8 h-8" />
                         <p className="text-sm">Tidak ada pesanan ditemukan</p>
@@ -471,8 +475,26 @@ export function AdminPesanan() {
                         {formatCurrency(order.totalPrice)}
                       </td>
 
-                      <td className="whitespace-nowrap text-xs text-surface-500 dark:text-surface-400">
-                        {order.slot ?? "—"}
+                      <td className="whitespace-nowrap text-xs text-surface-600 dark:text-surface-300">
+                        {orderTypeText(order.orderType, order.tableNumber)}
+                      </td>
+
+                      <td className="whitespace-nowrap text-xs">
+                        <p className="font-medium text-surface-700 dark:text-surface-300">
+                          {PAYMENT_METHOD_LABEL[order.paymentMethod]}
+                          <span className={order.isPaid ? "ml-1.5 text-green-600 dark:text-green-400" : "ml-1.5 text-amber-600 dark:text-amber-400"}>
+                            {order.isPaid ? "· Lunas" : "· Belum bayar"}
+                          </span>
+                        </p>
+                        {order.paymentProof && (
+                          <button
+                            type="button"
+                            onClick={() => setProofTarget(order)}
+                            className="mt-0.5 text-primary-600 dark:text-primary-400 hover:underline"
+                          >
+                            Lihat bukti
+                          </button>
+                        )}
                       </td>
 
                       <td className="whitespace-nowrap">
@@ -551,6 +573,14 @@ export function AdminPesanan() {
           )}
         </motion.div>
       </div>
+
+      {proofTarget?.paymentProof && (
+        <ImagePreviewModal
+          src={proofTarget.paymentProof}
+          title={`Bukti Bayar · ${proofTarget.orderNumber}`}
+          onClose={() => setProofTarget(null)}
+        />
+      )}
 
       <AnimatePresence>
         <DeleteModal

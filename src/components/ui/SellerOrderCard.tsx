@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, CreditCard, Clock } from 'lucide-react';
+import { Loader2, CreditCard, Clock, Banknote, Eye } from 'lucide-react';
 import type { PesananResponse } from '@/lib/api/types';
 import type { OrderStatus } from '@/types';
 import { formatCurrency, getOrderStatusConfig } from '@/lib/utils'
+import { OrderMetaBadges } from '@/components/ui/OrderMetaBadges';
+import { ImagePreviewModal } from '@/components/ui/ImagePreviewModal';
 
 interface SellerOrderCardProps {
   order: PesananResponse;
@@ -22,10 +25,22 @@ export default function SellerOrderCard({
   updatingId,
   nextActions,
 }: SellerOrderCardProps) {
+  const [showProof, setShowProof] = useState(false);
   const cfg = getOrderStatusConfig(order.status);
-  const actions = nextActions?.[order.status] ?? [];
   const isUpdating = updatingId === order.id;
   const isPaid = order.isPaid === true;
+  const isCash = order.paymentMethod === 'cash';
+  const isDineIn = order.orderType === 'dine_in';
+  const isOpen = order.status !== 'ditolak' && order.status !== 'selesai';
+
+  // QRIS yang belum ada bukti bayar belum boleh diterima (backend juga menolak).
+  const waitingProof = !isCash && !isPaid && order.status === 'menunggu';
+  const rawActions = nextActions?.[order.status] ?? [];
+  const actions = (waitingProof ? rawActions.filter((a) => a.status !== 'diterima') : rawActions).map((a) =>
+    a.status === 'selesai'
+      ? { ...a, label: isDineIn ? 'Selesai (Sudah Diantar)' : 'Selesai (Sudah Diambil)' }
+      : a,
+  );
 
   return (
     <motion.div
@@ -39,12 +54,18 @@ export default function SellerOrderCard({
         className={`absolute -top-2 -right-2 text-xs px-3 py-1 rounded-full font-semibold shadow-sm flex items-center gap-1 z-10 ${
           isPaid
             ? 'bg-green-500 text-white'
-            : 'bg-amber-500 text-white'
+            : isCash
+              ? 'bg-blue-500 text-white'
+              : 'bg-amber-500 text-white'
         }`}
       >
         {isPaid ? (
           <>
             <CreditCard className="w-3.5 h-3.5" /> Sudah Bayar
+          </>
+        ) : isCash ? (
+          <>
+            <Banknote className="w-3.5 h-3.5" /> Bayar Tunai
           </>
         ) : (
           <>Belum Bayar</>
@@ -65,6 +86,7 @@ export default function SellerOrderCard({
               Ambil: {order.slot}
             </div>
           )}
+          <OrderMetaBadges order={order} className="mt-1.5" />
         </div>
 
         <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ml-2 ${cfg.className}`}>
@@ -96,6 +118,29 @@ export default function SellerOrderCard({
         </div>
       </div>
 
+      {order.paymentProof && (
+        <button
+          type="button"
+          onClick={() => setShowProof(true)}
+          className="w-full mb-3 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-800 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+        >
+          <Eye className="w-3.5 h-3.5" /> Lihat Bukti Bayar
+        </button>
+      )}
+
+      {waitingProof && (
+        <p className="mb-3 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
+          ⏳ Menunggu customer mengirim bukti pembayaran QRIS.
+        </p>
+      )}
+
+      {isCash && !isPaid && isOpen && (
+        <p className="mb-3 text-xs text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 rounded-lg px-3 py-2">
+          💵 Tagih tunai <strong>{formatCurrency(order.totalPrice)}</strong>{' '}
+          {isDineIn ? `saat mengantar ke Meja ${order.tableNumber ?? '-'}` : 'saat pesanan diambil'}.
+        </p>
+      )}
+
       {actions.length > 0 && (
         <div className="flex gap-2">
           {actions.map((action) => (
@@ -114,6 +159,14 @@ export default function SellerOrderCard({
             </button>
           ))}
         </div>
+      )}
+
+      {showProof && order.paymentProof && (
+        <ImagePreviewModal
+          src={order.paymentProof}
+          title={`Bukti Bayar · ${order.orderNumber}`}
+          onClose={() => setShowProof(false)}
+        />
       )}
     </motion.div>
   );

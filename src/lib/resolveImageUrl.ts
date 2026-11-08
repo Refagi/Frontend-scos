@@ -3,7 +3,7 @@ const UPLOAD_MARKER = '/upload/';
 /**
  * Mengubah URL gambar menjadi URL yang siap tampil.
  *  - URL Cloudinary: disisipi transformasi (ukuran + kualitas/format otomatis) tepat setelah
- *    "/upload/", jadi cloud name & versi aslinya TIDAK diubah (bekerja pada cloud mana pun).
+ *    "/upload/", jadi cloud name & versi aslinya TIDAK diubah (bekerja untuk cloud mana pun).
  *  - Path lokal ("/kantinBunda/...") atau URL lain: dikembalikan apa adanya.
  *
  * crop:

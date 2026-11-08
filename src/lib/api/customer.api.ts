@@ -23,8 +23,8 @@ export const customerApi = {
   cancelPesanan: (pesananId: string) =>
     api.patch<ApiResponse<PesananResponse>>(`/customer/pesanan/${pesananId}/cancel`),
 
-  konfirmasiPembayaran: (pesananId: string) =>
-  api.patch<ApiResponse>(`/customer/pesanan/${pesananId}/konfirmasi-bayar`),
+  konfirmasiPembayaran: (pesananId: string, paymentProof: string) =>
+    api.patch<ApiResponse<PesananResponse>>(`/customer/pesanan/${pesananId}/konfirmasi-bayar`, { paymentProof }),
 
   getRiwayatPesanan: (status?: OrderStatus) =>
     api.get<ApiResponse<PesananResponse[]>>('/customer/pesanan/riwayat', {

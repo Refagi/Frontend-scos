@@ -1,4 +1,4 @@
-import type { OrderStatus, UserRole } from '@/types/index.js'
+import type { OrderStatus, OrderType, PaymentMethod, UserRole } from '@/types/index.js'
 
 
 type NotifType = 'info' | 'success' | 'warning' | 'error';
@@ -9,7 +9,7 @@ export interface TambahAkunPayload {
   email:        string
   password:     string
   role:         UserRole
-  status?:      'active' | 'non_active'
+  status?:      'active' | 'non-active'
   phone?:       string
 
   storeName?:   string
@@ -28,7 +28,7 @@ export type EditAkunPayload = Partial<TambahAkunPayload>
 
 export type GetDaftarAkunQuery = {
   role?: 'admin' | 'seller' | 'customer';
-  status?: 'active' | 'non_active';
+  status?: 'active' | 'non-active';
   page?: number;
   limit?: number;
 };
@@ -78,7 +78,7 @@ export interface UserResponse {
   name:        string
   email:       string
   role:        UserRole
-  status:      'active' | 'non_active'
+  status:      'active' | 'non-active'
   phone?:      string | null
   avatar?:     string | null
 
@@ -173,6 +173,10 @@ export interface CreatePesananPayload {
   items:            CreatePesananItem[]
   slot?:            string | null
   notes?:           string | null
+  orderType:        OrderType
+  paymentMethod:    PaymentMethod
+  /** wajib jika orderType = dine_in */
+  tableNumber?:     string
 }
 
 export interface DetailPesananResponse {
@@ -197,6 +201,12 @@ export interface PesananResponse {
   paidAt?: string
   slot:             string
   notes:            string
+  orderType:        OrderType
+  tableNumber:      string | null
+  paymentMethod:    PaymentMethod
+  /** URL bukti pembayaran QRIS (null untuk tunai / belum dikirim) */
+  paymentProof:     string | null
+  paymentProofAt?:  string | null
   createdAt:        string
   updatedAt:        string
   customer?:        Pick<UserResponse, 'id' | 'name' | 'phone' | 'avatar'>

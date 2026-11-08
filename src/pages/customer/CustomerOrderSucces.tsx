@@ -4,19 +4,23 @@ import { motion } from 'framer-motion'
 import {
   CheckCircle2, Clock, Copy, Check,
   AlertTriangle, Loader2, ChevronRight,
-  QrCode, Receipt,
+  QrCode, Receipt, Banknote, Eye,
 } from 'lucide-react'
 import { customerApi } from '@/lib/api/customer.api'
 import type { PesananResponse, SellerResponse, ErrorResponse } from '@/lib/api/types'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
+import { cashPaymentNote } from '@/lib/orderMeta'
+import { resolveImageUrl } from '@/lib/resolveImageUrl'
+import { ImageUploadField } from '@/components/ui/ImageUploadField'
+import { ImagePreviewModal } from '@/components/ui/ImagePreviewModal'
+import { OrderMetaBadges } from '@/components/ui/OrderMetaBadges'
+import { useImageUpload } from '@/hooks/useImageUpload'
 import { AxiosError } from 'axios'
 
 interface LocationState {
   order:  PesananResponse
   seller: SellerResponse | null
 }
-
-const KONFIRMASI_KEY = (id: string) => `konfirmasi_bayar_${id}`
 
 export function CustomerOrderSuccess() {
   const { pesananId } = useParams<{ pesananId: string }>()
@@ -29,10 +33,8 @@ export function CustomerOrderSuccess() {
   const [confirming,  setConfirming]  = useState(false)
   const [error,       setError]       = useState<string | null>(null)
   const [copiedOrder, setCopiedOrder] = useState(false)
-  const [confirmed, setConfirmed] = useState(() => {
-    if (!pesananId) return false
-    return localStorage.getItem(KONFIRMASI_KEY(pesananId)) === 'true'
-  })
+  const [showProof,   setShowProof]   = useState(false)
+  const proof = useImageUpload('payment_proof')
 
   useEffect(() => {
     if (state?.order || !pesananId) return
@@ -44,12 +46,7 @@ export function CustomerOrderSuccess() {
         setLoading(true)
         const res = await customerApi.getDetailPesanan(pesananId)
         if (cancelled) return
-        const fetchedOrder = res.data?.data ?? null
-        setOrder(fetchedOrder)
-        if (fetchedOrder && ['selesai', 'ditolak'].includes(fetchedOrder.status)) {
-          localStorage.removeItem(KONFIRMASI_KEY(pesananId))
-          setConfirmed(false)
-        }
+        setOrder(res.data?.data ?? null)
       } catch {
         if (cancelled) return
         setError('Gagal memuat detail pesanan.')
@@ -69,18 +66,22 @@ export function CustomerOrderSuccess() {
     setTimeout(() => setCopiedOrder(false), 2000)
   }
 
-  const handleKonfirmasiBayar = async () => {
-    if (!pesananId || confirming || confirmed) return
+  const handleKirimBukti = async () => {
+    if (!pesananId || confirming || proof.uploading || !proof.value) return
     setConfirming(true)
     setError(null)
 
     try {
-      await customerApi.konfirmasiPembayaran(pesananId)
-      setConfirmed(true)
-      localStorage.setItem(KONFIRMASI_KEY(pesananId), 'true')
+      await customerApi.konfirmasiPembayaran(pesananId, proof.value)
+      // Server sudah menerima: perbarui tampilan dulu, lalu sinkronkan dengan data server.
+      setOrder(o => o ? { ...o, isPaid: true, status: 'diterima', paymentProof: proof.value } : o)
+      try {
+        const res = await customerApi.getDetailPesanan(pesananId)
+        if (res.data?.data) setOrder(res.data.data)
+      } catch { /* tampilan lokal sudah benar */ }
     } catch (err: unknown) {
       const axiosError = err as AxiosError<ErrorResponse>
-      setError(axiosError.response?.data?.message ?? 'Gagal mengirim notifikasi.')
+      setError(axiosError.response?.data?.message ?? 'Gagal mengirim bukti pembayaran. Coba lagi.')
     } finally {
       setConfirming(false)
     }
@@ -113,6 +114,22 @@ export function CustomerOrderSuccess() {
   const qrisUrl    = order.seller?.qrisImage ?? seller?.qrisImage ?? null
   const sellerName = order.seller?.storeName ?? seller?.storeName ?? 'Penjual'
 
+  const isCash    = order.paymentMethod === 'cash'
+  const canPay    = !isCash && !order.isPaid && order.status === 'menunggu'
+  const proofSent = !isCash && order.isPaid
+  const cashNote  = cashPaymentNote(order.orderType, order.tableNumber)
+
+  const heading =
+    order.status === 'ditolak' ? 'Pesanan Tidak Diproses'
+    : order.status === 'selesai' ? 'Pesanan Selesai'
+    : 'Pesanan Berhasil Dibuat!'
+  const subheading =
+    order.status === 'ditolak' ? 'Pesanan ini dibatalkan atau ditolak oleh penjual'
+    : order.status === 'selesai' ? 'Terima kasih sudah memesan'
+    : isCash ? cashNote
+    : canPay ? 'Selesaikan pembayaran agar pesananmu segera diproses'
+    : 'Bukti pembayaran sudah dikirim ke penjual'
+
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-surface-900 pb-32">
 
@@ -130,10 +147,8 @@ export function CustomerOrderSuccess() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.25 }}
         >
-          <h1 className="font-bold text-xl mb-1">Pesanan Berhasil Dibuat!</h1>
-          <p className="text-white/80 text-sm">
-            Selesaikan pembayaran agar pesananmu segera diproses
-          </p>
+          <h1 className="font-bold text-xl mb-1">{heading}</h1>
+          <p className="text-white/80 text-sm">{subheading}</p>
         </motion.div>
       </div>
 
@@ -167,6 +182,7 @@ export function CustomerOrderSuccess() {
             <Clock className="w-3.5 h-3.5" />
             {formatDateTime(order.createdAt)} · {sellerName}
           </div>
+          <OrderMetaBadges order={order} className="mt-3" />
         </motion.div>
 
         <motion.div
@@ -201,6 +217,26 @@ export function CustomerOrderSuccess() {
           </div>
         </motion.div>
 
+        {isCash && order.status !== 'ditolak' && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="bg-white dark:bg-surface-800 rounded-2xl p-4 shadow-sm"
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <Banknote className="w-5 h-5 text-primary-500" />
+              <h2 className="font-semibold text-sm">Bayar Tunai</h2>
+            </div>
+            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-sm text-amber-800 dark:text-amber-300 leading-relaxed">
+              💵 {cashNote}
+              <p className="mt-1.5 font-bold">Total: {formatCurrency(order.totalPrice)}</p>
+            </div>
+          </motion.div>
+        )}
+
+        {canPay && (
+          <>
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -240,36 +276,73 @@ export function CustomerOrderSuccess() {
           )}
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.45 }}
-          className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-4"
-        >
-          <h3 className="font-semibold text-amber-800 dark:text-amber-400 text-sm mb-2">
-            📋 Cara Pembayaran
-          </h3>
-          <ol className="space-y-1.5 text-xs text-amber-700 dark:text-amber-400/90 leading-relaxed">
-            <li>1. Buka aplikasi e-wallet atau mobile banking kamu</li>
-            <li>2. Scan QR Code di atas</li>
-            <li>3. Masukkan nominal <strong>{formatCurrency(order.totalPrice)}</strong></li>
-            <li>4. Selesaikan pembayaran</li>
-            <li>5. Klik tombol <strong>"Saya Sudah Transfer"</strong> di bawah</li>
-          </ol>
-        </motion.div>
 
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex items-start gap-2 p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-2xl text-sm"
-          >
-            <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-            {error}
-          </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.45 }}
+              className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-4"
+            >
+              <h3 className="font-semibold text-amber-800 dark:text-amber-400 text-sm mb-2">
+                📋 Cara Pembayaran
+              </h3>
+              <ol className="space-y-1.5 text-xs text-amber-700 dark:text-amber-400/90 leading-relaxed">
+                <li>1. Buka aplikasi e-wallet atau mobile banking kamu</li>
+                <li>2. Scan QR Code di atas</li>
+                <li>3. Masukkan nominal <strong>{formatCurrency(order.totalPrice)}</strong></li>
+                <li>4. Selesaikan pembayaran dan simpan bukti (screenshot)</li>
+                <li>5. Upload bukti di bawah, lalu klik <strong>"Kirim Bukti Pembayaran"</strong></li>
+              </ol>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="bg-white dark:bg-surface-800 rounded-2xl p-4 shadow-sm"
+            >
+              <ImageUploadField
+                label="Bukti Pembayaran"
+                upload={proof}
+                fit="contain"
+                tall
+                required
+                hint="Screenshot atau foto struk pembayaran"
+              />
+            </motion.div>
+
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-start gap-2 p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-2xl text-sm"
+              >
+                <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                {error}
+              </motion.div>
+            )}
+
+            <motion.button
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.55 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => void handleKirimBukti()}
+              disabled={confirming || proof.uploading || !proof.value}
+              className="w-full py-4 bg-primary-500 hover:bg-primary-600 active:bg-primary-700 disabled:bg-surface-300 dark:disabled:bg-surface-700 disabled:text-surface-400 text-white font-semibold rounded-2xl text-base flex items-center justify-center gap-2 transition-colors shadow-lg"
+            >
+              {confirming
+                ? <><Loader2 className="w-5 h-5 animate-spin" /> Mengirim bukti...</>
+                : proof.uploading
+                  ? 'Menunggu upload selesai...'
+                  : proof.value
+                    ? '✓ Kirim Bukti Pembayaran'
+                    : 'Upload bukti pembayaran dulu'}
+            </motion.button>
+          </>
         )}
 
-        {confirmed ? (
+        {proofSent && (
           <motion.div
             initial={{ opacity: 0, scale: 0.97 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -277,27 +350,26 @@ export function CustomerOrderSuccess() {
           >
             <CheckCircle2 className="w-8 h-8 text-primary-500 mx-auto mb-2" />
             <p className="font-semibold text-primary-700 dark:text-primary-400 text-sm">
-              Notifikasi terkirim ke penjual!
+              Bukti pembayaran terkirim ke penjual!
             </p>
             <p className="text-xs text-primary-600/70 dark:text-primary-400/70 mt-1 leading-relaxed">
-              Penjual akan mengecek saldo dan memproses pesananmu segera.
+              Penjual akan memeriksa bukti pembayaran dan memproses pesananmu.
             </p>
+            {order.paymentProof && (
+              <button
+                type="button"
+                onClick={() => setShowProof(true)}
+                className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline"
+              >
+                <img
+                  src={resolveImageUrl(order.paymentProof, 96)}
+                  alt=""
+                  className="w-8 h-8 rounded object-cover border border-primary-200 dark:border-primary-700"
+                />
+                <Eye className="w-3.5 h-3.5" /> Lihat bukti pembayaran
+              </button>
+            )}
           </motion.div>
-        ) : (
-          <motion.button
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => void handleKonfirmasiBayar()}
-            disabled={confirming}
-            className="w-full py-4 bg-primary-500 hover:bg-primary-600 active:bg-primary-700 disabled:opacity-70 text-white font-semibold rounded-2xl text-base flex items-center justify-center gap-2 transition-colors shadow-lg"
-          >
-            {confirming
-              ? <><Loader2 className="w-5 h-5 animate-spin" /> Mengirim notifikasi...</>
-              : '✓ Saya Sudah Transfer'
-            }
-          </motion.button>
         )}
 
         <motion.button
@@ -312,6 +384,14 @@ export function CustomerOrderSuccess() {
         </motion.button>
 
       </div>
+
+      {showProof && order.paymentProof && (
+        <ImagePreviewModal
+          src={order.paymentProof}
+          title="Bukti Pembayaran"
+          onClose={() => setShowProof(false)}
+        />
+      )}
     </div>
   )
 }
